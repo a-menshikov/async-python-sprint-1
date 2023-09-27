@@ -1,28 +1,27 @@
-# import logging
-# import threading
-# import subprocess
-# import multiprocessing
-
-
-from external.client import YandexWeatherAPI
-from tasks import (
-    DataFetchingTask,
-    DataCalculationTask,
-    DataAggregationTask,
-    DataAnalyzingTask,
-)
-from utils import CITIES, get_url_by_city_name
+from tasks import (DataAggregationTask, DataAnalyzingTask, DataCalculationTask,
+                   DataFetchingTask)
+from utils import CITIES
 
 
 def forecast_weather():
-    """
-    Анализ погодных условий по городам
-    """
-    # city_name = "MOSCOW"
-    # url_with_data = get_url_by_city_name(city_name)
-    # resp = YandexWeatherAPI.get_forecasting(url_with_data)
-    # print(resp)
-    pass
+    """Анализ погодных условий по городам."""
+    cities = list(CITIES.keys())
+
+    fetching = DataFetchingTask()
+    fetching.get_data()
+
+    calculation = DataCalculationTask(data=fetching.result)
+    calculation.run_concurrent(cities=cities)
+    calculation_result = calculation.result
+
+    aggregarion = DataAggregationTask(data=calculation_result)
+    aggregarion.process_data()
+    aggregarion.save_to_csv(filename="aggregarion.csv")
+    aggregarion_result = aggregarion.df
+
+    analyzing = DataAnalyzingTask(df=aggregarion_result)
+    best_city = analyzing.analyze_data()
+    print(f"Для путешествий {best_city=}")
 
 
 if __name__ == "__main__":

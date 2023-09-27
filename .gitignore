@@ -1,5 +1,7 @@
-
+*.csv
+*.log
 creds.ini
 .idea/
 __pycache__/
 *.pyc
+/venv
