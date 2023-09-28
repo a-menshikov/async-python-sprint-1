@@ -4,7 +4,10 @@ from threading import Thread
 
 import numpy as np
 import pandas as pd
+from config import (AGGREGATE_WORKERS, BEGIN_HOUR, DAY_HOURS, END_HOUR,
+                    FETCHING_WORKERS)
 from external.client import YandexWeatherAPI
+from external.exceptions import ApiError
 from my_logger import logger
 from utils import CITIES
 
@@ -29,16 +32,16 @@ class DataFetchingTask:
             try:
                 weather_data = self.get_weather(url)
                 self.result[city] = weather_data
-            except BaseException as e:
-                logger.error(f"Ошибка по городу {city}: {str(e)}")
+            except ApiError as e:
+                logger.error("Error in %s: %s", city, str(e))
             finally:
                 self.queue.task_done()
 
     def get_data(self, *args, **kwargs) -> None:
         """Получение данных всех городов."""
-        logger.info("Запущен процесс получения данных")
+        logger.info("Start fetching data")
 
-        workers = 10
+        workers = FETCHING_WORKERS
 
         for _ in range(workers):
             thread = Thread(target=self.worker)
@@ -50,7 +53,7 @@ class DataFetchingTask:
 
         self.queue.join()
 
-        logger.info("Процесс получения данных завершен")
+        logger.info("Finish fetching data")
 
 
 class DataCalculationTask:
@@ -63,25 +66,25 @@ class DataCalculationTask:
     def get_city_data(
         self,
         city: str,
-        forecast_hours=tuple(range(9, 20)),
+        forecast_hours=tuple(range(BEGIN_HOUR, END_HOUR+1)),
     ) -> dict:
         """Вычисление температуры по городу."""
         result = {}
         try:
             city_data = self.all_data[city]
         except KeyError:
-            logger.error(f"Не удалось получить прогноз по {city}")
+            logger.error("Error in %s calculate", city)
             return result
 
         try:
             forecasts = city_data["forecasts"]
         except KeyError:
-            logger.error(f"{city}. Нет ключа forecasts")
+            logger.error("%s. No key forecasts", city)
             return result
 
         for forecast_ in forecasts:
             date = forecast_["date"]
-            if len(forecast_["hours"]) < 24:
+            if len(forecast_["hours"]) < DAY_HOURS:
                 continue
             result[date] = []
             for hour_data in forecast_["hours"]:
@@ -118,7 +121,7 @@ class DataCalculationTask:
         try:
             city_data = self.get_city_data(city)
         except KeyError:
-            logger.error(f"Ошибка подсчета. Город {city}")
+            logger.error("Calculate error in %s", city)
             return {}
 
         for dt, forecast in city_data.items():
@@ -136,14 +139,14 @@ class DataCalculationTask:
 
     def run_concurrent(self, cities: list[str]) -> None:
         """Запуск процессного пула."""
-        logger.info("Запущен процесс вычисления погодных данных")
+        logger.info("Calculate weather data start")
         with concurrent.futures.ProcessPoolExecutor() as executor:
             results = executor.map(self.summarize_weather, cities)
 
         for result in results:
             self.result.update(result)
 
-        logger.info("Процесс вычисления погодных данных завершен")
+        logger.info("Calculate weather data finish")
 
 
 class DataAggregationTask:
@@ -180,9 +183,9 @@ class DataAggregationTask:
         )
         return pd.DataFrame(data, columns=columns)
 
-    def process_data(self, workers: int = 4) -> None:
+    def process_data(self, workers: int = AGGREGATE_WORKERS) -> None:
         """Вычисление погодных данных."""
-        logger.info("Запущен процесс агрегации погодных данных")
+        logger.info("Aggregating weather data start")
         items = list(self.data.items())
         chunk_size = len(items) // workers
         chunks = [
@@ -211,13 +214,13 @@ class DataAggregationTask:
             merged_results[mean_temp_cols].replace("", np.nan).mean(axis=1)
         )
         self.df = merged_results
-        logger.info("Процесс агрегации погодных данных завершен")
+        logger.info("Aggregating weather data finish")
 
     def save_to_csv(self, filename: str) -> None:
         """Сохранение данных в csv."""
-        logger.info(f"Сохранение данных в файл {filename}")
+        logger.info("Saving data to %s", filename)
         self.df.to_csv(filename, index=False)
-        logger.info(f"Данные сохранены в файл {filename}")
+        logger.info("Data saved to %s", filename)
 
 
 class DataAnalyzingTask:
@@ -227,7 +230,7 @@ class DataAnalyzingTask:
 
     def analyze_data(self) -> str:
         """Анализ погодных данных."""
-        logger.info("Запущен процесс анализа погодных данных")
+        logger.info("Analyze weather data start")
         max_avg_temp = self.df["Средняя Температура"].max()
 
         cities_with_max_temp = self.df[
@@ -235,15 +238,14 @@ class DataAnalyzingTask:
         ]
 
         if len(cities_with_max_temp) == 1:
-            logger.info("Результат готов.")
+            logger.info("Analyze weather data finish")
             return cities_with_max_temp["Город"].tolist()[0]
-        else:
-            max_precipitation_free_days = cities_with_max_temp[
-                "Среднее количество часов без осадков"
-            ].max()
-            best_cities = cities_with_max_temp[
-                cities_with_max_temp["Среднее количество часов без осадков"]
-                == max_precipitation_free_days
-            ]["Город"].tolist()
-            logger.info("Результат готов.")
-            return ", ".join(best_cities)
+        max_precipitation_free_days = cities_with_max_temp[
+            "Среднее количество часов без осадков"
+        ].max()
+        best_cities = cities_with_max_temp[
+            cities_with_max_temp["Среднее количество часов без осадков"]
+            == max_precipitation_free_days
+        ]["Город"].tolist()
+        logger.info("Analyze weather data finish")
+        return ", ".join(best_cities)

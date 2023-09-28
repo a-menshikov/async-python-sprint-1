@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass, field
 from functools import reduce
 from operator import getitem
-from typing import Optional, List, Dict
+from typing import Dict, List, Optional
 
 PATH_FROM_INPUT = "./../examples/response.json"
 PATH_TO_OUTPUT = "./../examples/output.json"
@@ -18,33 +18,17 @@ INPUT_TEMPERATURE_PATH = "temp"
 INPUT_CONDITION_PATH = "condition"
 INPUT_DAY_HOURS_START = 9
 INPUT_DAY_HOURS_END = 19
-INPUT_DAY_SUITABLE_CONDITIONS = [
+INPUT_DAY_SUITABLE_CONDITIONS = (
     "clear",
     "partly-cloudy",
     "cloudy",
     "overcast",
-    # "drizzle",
-    # "light-rain",
-    # "rain",
-    # "moderate-rain",
-    # "heavy-rain",
-    # "continuous-heavy-rain",
-    # "showers",
-    # "wet-snow",
-    # "light-snow",
-    # "snow",
-    # "snow-showers",
-    # "hail",
-    # "thunderstorm",
-    # "thunderstorm-with-rain",
-    # "thunderstorm-with-hail"
-]
+)
 
 OUTPUT_RAW_DATA_KEY = "raw_data"
 OUTPUT_DAYS_KEY = "days"
 DEFAULT_OUTPUT_RESULT = {
     OUTPUT_DAYS_KEY: [],
-    # OUTPUT_RAW_DATA_KEY: None,
 }
 
 
@@ -197,7 +181,6 @@ def analyze_json(data):
         days.append(d_info.to_json())
 
     result = DEFAULT_OUTPUT_RESULT
-    # result[OUTPUT_RAW_DATA_KEY] = data
     result[OUTPUT_DAYS_KEY] = days
     return result
 

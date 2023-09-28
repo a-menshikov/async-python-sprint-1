@@ -1,3 +1,4 @@
+from config import FILENAME
 from tasks import (DataAggregationTask, DataAnalyzingTask, DataCalculationTask,
                    DataFetchingTask)
 from utils import CITIES
@@ -16,7 +17,7 @@ def forecast_weather():
 
     aggregarion = DataAggregationTask(data=calculation_result)
     aggregarion.process_data()
-    aggregarion.save_to_csv(filename="aggregarion.csv")
+    aggregarion.save_to_csv(filename=FILENAME)
     aggregarion_result = aggregarion.df
 
     analyzing = DataAnalyzingTask(df=aggregarion_result)
